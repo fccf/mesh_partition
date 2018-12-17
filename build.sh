@@ -1,1 +1,1 @@
-FoBiS.py build -mode tests-gnu
+FoBiS.py build -mode gnu

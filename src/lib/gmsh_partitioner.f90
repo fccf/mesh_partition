@@ -2,6 +2,8 @@ module gmsh_partitioner
   use gmsh_interface
   use metis_interface
   use string
+  use search
+  use hdf5_interface
   use iso_c_binding
   use psb_util_mod
   implicit none
@@ -24,6 +26,7 @@ module gmsh_partitioner
 
   type(part_t), allocatable :: part(:)
   type(msh_file) :: msh
+  logical :: partitioned = .FALSE.
 
 contains
   !=============================================================================
@@ -167,9 +170,82 @@ contains
       enddo
     end block
 
+    partitioned = .TRUE.
     !> make face index
 
   end subroutine gmsh_partition
+  !=============================================================================
+  subroutine write_part_h5(h5f, prefix)
+    type(hdf5_file),intent(in) :: h5f
+    character(*), intent(in), optional :: prefix
+
+    integer :: ip, np, nn_lc, ne_lc
+    real, allocatable :: coo(:,:), xyz_lc(:)
+    integer, allocatable :: eni(:,:), er(:), eind_lc(:), er_lc(:)
+
+    character(:),allocatable :: pre_, pre
+    integer :: nd, enn, i, k
+
+    if(.not. h5f%is_open) error stop "hdf5 file has not been opened."
+    if(.not. partitioned) error stop "the mesh has not been partitioned."
+
+    pre_ = '/'
+    if(present(prefix)) pre_ = trim(adjustl(prefix))
+
+    coo = msh%get_coord()
+    eni = msh%get_eni2()
+    er = msh%get_er()
+    nd = msh%get_nd()
+    enn = msh%get_enn()
+    np = size(part)
+
+    print*, np
+
+    do ip = 0, np-1
+      nn_lc = part(ip+1)%na
+      ne_lc = part(ip+1)%ne
+
+      allocate(xyz_lc(nn_lc*nd))
+      allocate(eind_lc(enn*ne_lc))
+      allocate(er_lc(ne_lc))
+
+      er_lc = er(part(ip+1)%elem_idx)
+      ! xyz_lc = reshape(source=coo(:,part(ip+1)%node_idx), shape=(/nn_lc*nd/))
+      xyz_lc = reshape(source=coo(:,part(ip+1)%all_idx), shape=(/nn_lc*nd/))
+      eind_lc = reshape(source = eni(:,part(ip+1)%elem_idx), shape=(/ne_lc*enn/))
+
+      print*, to_str(part(ip+1)%all_idx)
+      print*, to_str(eind_lc)
+      print*, size(eind_lc)
+      do i=1, size(eind_lc)
+        k = eind_lc(i)
+        eind_lc(i) = binary_search(k, part(ip+1)%all_idx)
+        print*, i, k, eind_lc(i), size(eind_lc)
+      enddo
+
+      print*, 'xcd'
+      pre = pre_//'process_'//to_str(ip)
+
+      print*, pre
+
+      call h5f%add(pre//'/node_idx',part(ip+1)%node_idx)
+      call h5f%add(pre//'/all_idx',part(ip+1)%all_idx)
+      call h5f%add(pre//'/elem_idx',part(ip+1)%elem_idx)
+      call h5f%add(pre//'/halo_idx',part(ip+1)%halo_idx)
+      call h5f%add(pre//'/face_idx',part(ip+1)%face_idx)
+
+      call h5f%add(pre//'/xyz',xyz_lc)
+      call h5f%add(pre//'/eind',eind_lc)
+      call h5f%add(pre//'/er',er_lc)
+
+      deallocate(xyz_lc)
+      deallocate(eind_lc)
+      deallocate(er_lc)
+    enddo
+
+    ! print*, 'hdf5 '
+
+  end subroutine write_part_h5
   !=============================================================================
   subroutine write_part(unit)
     integer, intent(in) :: unit
