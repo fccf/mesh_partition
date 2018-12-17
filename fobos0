@@ -1,0 +1,39 @@
+[modes]
+modes = gnu
+
+[common-variables]
+$CSTATIC_GNU = -cpp -c -std=f2008ts -ffree-line-length-none -fbacktrace
+$DEBUG_GNU   = -O0 -g3 -Warray-bounds -Wcharacter-truncation -Wline-truncation -Wimplicit-interface -Wimplicit-procedure -Wunderflow -fcheck=all -fmodule-private -ffree-line-length-132 -fimplicit-none -fbacktrace -fdump-core -finit-real=nan
+$OPTIMIZE    = -O3
+$EXDIRS      = src/dev
+
+$fc_lib      = /home/superfun/fc/lib
+$hdf5        = $fc_lib/hdf5
+$fox         = $fc_lib/fox
+$penf        = $fc_lib/penf
+$xh5f        = $fc_lib/xh5f
+$psb         = $fc_lib/psblas
+
+# main modes
+[gnu]
+template  = template-static-gnu
+build_dir = app
+
+
+# templates
+[template-static-gnu]
+compiler        = gnu
+exclude_dirs    = $EXDIRS
+src             = src/
+cflags          = $CSTATIC_GNU $OPTIMIZE
+lflags          = $OPTIMIZE
+cflags_heritage = False
+colors          = True
+quiet           = False
+log             = False
+jobs            = 10
+preproc         = -DENABLE_MPI -DMPI_H -DENABLE_HDF5
+mpi             = True
+include         = $hdf5/include $fox/modules $penf/modules $xh5f/modules $psb/include $psb/modules
+libs            = -L$hdf5/lib -L$/fox/lib -L$penf/lib -L$xh5f/lib -L$psb/lib
+ext_libs        = XH5For hdf5_fortran hdf5hl_fortran penf FoX_dom FoX_sax FoX_wxml FoX_utils FoX_common FoX_fsys gcov psb_util psb_krylov psb_prec psb_base lapack blas metis
